@@ -1,0 +1,51 @@
+# For more information, see:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+jobs:
+- job: Windows
+  pool:
+    name: Home Pool
+    demands:
+    - cmake
+
+  steps:
+  - task: CMake@1
+    displayName: 'CMake ..'
+    inputs:
+      cmakeArgs: '..'
+
+  - task: CMake@1
+    displayName: 'CMake --build . --config Debug'
+    inputs:
+      cmakeArgs: '--build . --config Debug'
+
+  - task: BatchScript@1
+    displayName: 'Catch2 Unit Tests'
+    inputs:
+      filename: 'build\Debug\unit_tests.exe'
+    enabled: false
+    continueOnError: true
+
+  - task: CMake@1
+    displayName: 'CMake -E chdir . ctest -C Debug -j (Get-WmiObject -class Win32_processor | ft -HideTableHeaders NumberOfCores | Out-String).trim()'
+    inputs:
+      cmakeArgs: '-E chdir . ctest -C Debug -j (Get-WmiObject -class Win32_processor | ft -HideTableHeaders NumberOfCores | Out-String).trim()'
+    continueOnError: true
+
+  - task: CMake@1
+    displayName: 'CMake -E chdir . cpack -C Debug -G 7Z'
+    inputs:
+      cmakeArgs: '-E chdir . cpack -C Debug -G 7Z'
+
+  - task: CopyFiles@2
+    displayName: 'Copy CPack Files to: $(Build.ArtifactStagingDirectory)'
+    inputs:
+      SourceFolder: 'build\_CPack_Packages\win32\7Z\'
+      Contents: '*.7z'
+      TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Artifact: drop'
